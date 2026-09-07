@@ -4,7 +4,7 @@ Clon del clásico arcade **Asteroids** implementado en canvas HTML5 puro, sin de
 
 ## Descripción
 
-Nave espacial en un campo de asteroides con envolvimiento de bordes (el espacio es toroidal). Destruye asteroides para sumar puntos: los grandes se parten en medianos, los medianos en pequeños. Recoge el power-up de velocidad para duplicar tu empuje y caza la estrella fugaz, un asteroide especial que cruza la pantalla a toda velocidad.
+Nave espacial en un campo de asteroides con envolvimiento de bordes (el espacio es toroidal). Destruye asteroides para sumar puntos: los grandes se parten en medianos, los medianos en pequeños. Recoge el power-up de velocidad para duplicar tu empuje o el de escudo para absorber tres impactos, caza la estrella fugaz que cruza la pantalla a toda velocidad y destruye el OVNI que aparece para bombardear tu nave.
 
 ## Tecnologías
 
@@ -38,6 +38,7 @@ Luego visita `http://localhost:3000`.
 | Mediano        | 50     |
 | Pequeño        | 100    |
 | Estrella fugaz | 500    |
+| OVNI           | 300    |
 
 ## Características
 
@@ -45,4 +46,6 @@ Luego visita `http://localhost:3000`.
 - Asteroides se parten en fragmentos más pequeños al ser destruidos
 - Partículas de explosión al destruir asteroides
 - Power-up **Velocidad**: cápsula cyan que sueltan los asteroides destruidos; duplica el empuje de la nave durante 5 s (barra de tiempo restante en el HUD)
+- Power-up **Escudo**: cápsula verde que sueltan los asteroides destruidos; otorga una carga (máx. 3) que absorbe un impacto de bala enemiga, asteroide, estrella fugaz u OVNI, destruyéndolo en el proceso (iconos de carga en el HUD)
 - **Estrella fugaz**: asteroide dorado con estela que cruza la pantalla cada 8–15 s; da 500 puntos al destruirlo, pero también destruye la nave al chocar
+- **OVNI**: enemigo rojo que aparece cada 12–18 s con rumbo errático y bombardea a la nave durante ~12 s, cada vez con mejor puntería; da 300 puntos al destruirlo y también muere si choca contra un asteroide
