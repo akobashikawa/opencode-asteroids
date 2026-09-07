@@ -435,13 +435,16 @@ class Ufo {
 // ── Skins de la nave ──────────────────────────────────────────────────────────
 const SAVE_KEY = 'asteroids-skin';
 
-// Cada skin: name (HUD), stroke (color de trazo), flame (rgb de la llama) y
-// verts (polígono con la nariz en +x, mismo orden que el dibujo original)
+// Cada skin: name (HUD), stroke (color de trazo), flame (rgb de la llama),
+// scale (tamaño relativo: hitbox, nariz, llama y escudo), mult (multiplicador
+// de puntos) y verts (polígono con la nariz en +x, mismo orden que el
+// dibujo original)
 const SKINS = [
-  { name: 'CLÁSICA', stroke: '#fff',    flame: '255,130,0',  verts: [[20, 0], [-12,  -9], [-7, 0], [-12,   9]] },
-  { name: 'NEÓN',    stroke: '#0ff',    flame: '0,255,255',  verts: [[24, 0], [-12,  -5], [-7, 0], [-12,   5]] },
-  { name: 'ÁMBAR',   stroke: '#ffd54a', flame: '255,213,74', verts: [[13, 0], [-11, -13], [-7, 0], [-11,  13]] },
-  { name: 'RUBÍ',    stroke: '#f66',    flame: '255,80,80',  verts: [[17, 0], [-13,  -8], [-7, 0], [-13,   8]] },
+  { name: 'CLÁSICA', stroke: '#fff',    flame: '255,130,0',  scale: 1, mult: 1, verts: [[20, 0], [-12,  -9], [-7, 0], [-12,   9]] },
+  { name: 'NEÓN',    stroke: '#0ff',    flame: '0,255,255',  scale: 1, mult: 1, verts: [[24, 0], [-12,  -5], [-7, 0], [-12,   5]] },
+  { name: 'ÁMBAR',   stroke: '#ffd54a', flame: '255,213,74', scale: 1, mult: 1, verts: [[13, 0], [-11, -13], [-7, 0], [-11,  13]] },
+  { name: 'RUBÍ',    stroke: '#f66',    flame: '255,80,80',  scale: 1, mult: 1, verts: [[17, 0], [-13,  -8], [-7, 0], [-13,   8]] },
+  { name: 'MORADA',  stroke: '#bd93f9', flame: '189,147,249', scale: 2, mult: 2, verts: [[40, 0], [-24, -18], [-14, 0], [-24,  18]] },
 ];
 
 let skinIndex = 0;
@@ -456,11 +459,14 @@ function loadSkin() {
 
 function setSkin(i) {
   skinIndex = wrap(i, SKINS.length);
+  if (ship) ship.radius = SHIP_RADIUS * SKINS[skinIndex].scale;
   skinToast = 1.5;
   try { localStorage.setItem(SAVE_KEY, skinIndex); } catch (e) { /* localStorage no disponible */ }
 }
 
 // ── Ship ──────────────────────────────────────────────────────────────────────
+const SHIP_RADIUS = 12;
+
 class Ship {
   constructor() { this.reset(); }
 
@@ -470,7 +476,7 @@ class Ship {
     this.angle  = -Math.PI / 2;
     this.vx     = 0;
     this.vy     = 0;
-    this.radius = 12;
+    this.radius = SHIP_RADIUS * SKINS[skinIndex].scale;
     this.thrusting     = false;
     this.invincible    = 3;
     this.shootCooldown = 0;
@@ -512,7 +518,7 @@ class Ship {
   tryShoot() {
     if (this.shootCooldown > 0 || this.dead) return [];
     this.shootCooldown = 0.2;
-    const NOSE = 21;
+    const NOSE = 21 * SKINS[skinIndex].scale;
     const ox = this.x + Math.cos(this.angle) * NOSE;
     const oy = this.y + Math.sin(this.angle) * NOSE;
     if (this.tripleShot > 0) {
@@ -528,6 +534,7 @@ class Ship {
     if (this.invincible > 0 && Math.floor(this.invincible * 8) % 2 === 0) return;
 
     const skin = SKINS[skinIndex];
+    const s    = skin.scale;
 
     ctx.save();
     ctx.translate(this.x, this.y);
@@ -543,9 +550,9 @@ class Ship {
     // Llama del propulsor (cyan mientras dura el power-up Velocidad)
     if (this.thrusting && Math.random() > 0.35) {
       ctx.beginPath();
-      ctx.moveTo(-8, -4);
-      ctx.lineTo(-8 - rand(6, 14), 0);
-      ctx.lineTo(-8,  4);
+      ctx.moveTo(-8 * s, -4 * s);
+      ctx.lineTo(-8 * s - rand(6, 14) * s, 0);
+      ctx.lineTo(-8 * s,  4 * s);
       ctx.strokeStyle = this.speedBoost > 0
         ? 'rgba(0, 255, 255, 0.9)'
         : `rgba(${skin.flame}, 0.85)`;
@@ -562,7 +569,7 @@ class Ship {
       for (let i = 0; i < this.shield; i++) {
         const a0 = (i / this.shield) * Math.PI * 2;
         ctx.beginPath();
-        ctx.arc(0, 0, SHIELD_RADIUS, a0, a0 + (Math.PI * 2 / this.shield) - 0.5);
+        ctx.arc(0, 0, SHIELD_RADIUS * s, a0, a0 + (Math.PI * 2 / this.shield) - 0.5);
         ctx.stroke();
       }
     }
@@ -610,6 +617,11 @@ let starTimer, ufoTimer;
 let score, lives, level;
 let state;      // 'playing' | 'dead' | 'gameover'
 let deadTimer;
+
+// Los puntos se multiplican por el mult del skin activo
+function addScore(points) {
+  score += points * SKINS[skinIndex].mult;
+}
 
 function spawnAsteroids(count) {
   const SAFE_DIST = 130;
@@ -770,7 +782,7 @@ function update(dt) {
       if (!a.dead && !b.dead && dist(b, a) < a.radius) {
         b.dead = true;
         a.dead = true;
-        score += POINTS[a.size];
+        addScore(POINTS[a.size]);
         explode(a.x, a.y, a.size * 5);
         if (Math.random() < DROP_CHANCE) powerUps.push(new PowerUp(a.x, a.y));
         newAsteroids.push(...a.split());
@@ -786,7 +798,7 @@ function update(dt) {
       if (!s.dead && !b.dead && dist(b, s) < s.radius) {
         b.dead = true;
         s.dead = true;
-        score += STAR_POINTS;
+        addScore(STAR_POINTS);
         explode(s.x, s.y, 10, '255,213,74');
       }
     }
@@ -800,7 +812,7 @@ function update(dt) {
       if (!u.dead && !b.dead && dist(b, u) < u.radius) {
         b.dead = true;
         u.dead = true;
-        score += UFO_POINTS;
+        addScore(UFO_POINTS);
         explode(u.x, u.y, 10, '255,85,85');
       }
     }
@@ -830,7 +842,7 @@ function update(dt) {
   if (ship.invincible <= 0 && !ship.dead) {
     for (const b of enemyBullets) {
       if (b.dead) continue;
-      if (ship.shield > 0 && dist(b, ship) < SHIELD_RADIUS) {
+      if (ship.shield > 0 && dist(b, ship) < SHIELD_RADIUS * SKINS[skinIndex].scale) {
         b.dead = true;
         absorbHit(b.x, b.y);
       } else if (dist(b, ship) < ship.radius + b.radius) {
@@ -848,7 +860,7 @@ function update(dt) {
     if (hitAsteroid) {
       if (ship.shield > 0) {
         hitAsteroid.dead = true;
-        score += POINTS[hitAsteroid.size];
+        addScore(POINTS[hitAsteroid.size]);
         explode(hitAsteroid.x, hitAsteroid.y, hitAsteroid.size * 5);
         asteroids = asteroids.filter(a => !a.dead).concat(hitAsteroid.split());
         absorbHit(hitAsteroid.x, hitAsteroid.y);
@@ -862,7 +874,7 @@ function update(dt) {
       if (hitStar) {
         if (ship.shield > 0) {
           hitStar.dead = true;
-          score += STAR_POINTS;
+          addScore(STAR_POINTS);
           explode(hitStar.x, hitStar.y, 10, '255,213,74');
           absorbHit(hitStar.x, hitStar.y);
         } else {
@@ -876,7 +888,7 @@ function update(dt) {
       if (hitUfo) {
         if (ship.shield > 0) {
           hitUfo.dead = true;
-          score += UFO_POINTS;
+          addScore(UFO_POINTS);
           explode(hitUfo.x, hitUfo.y, 10, '255,85,85');
           absorbHit(hitUfo.x, hitUfo.y);
         } else {
@@ -895,14 +907,16 @@ function update(dt) {
 
 // ── Draw ──────────────────────────────────────────────────────────────────────
 function drawLifeIcon(x, y) {
+  const skin = SKINS[skinIndex];
+  const k = 0.45 / skin.scale;   // icono uniforme sea cual sea el tamaño del skin
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(-Math.PI / 2);
-  ctx.scale(0.45, 0.45);
-  ctx.strokeStyle = SKINS[skinIndex].stroke;
-  ctx.lineWidth   = 2.7;   // ~1.2 visual tras la escala 0.45
+  ctx.scale(k, k);
+  ctx.strokeStyle = skin.stroke;
+  ctx.lineWidth   = 2.7 * skin.scale;   // ~1.2 visual tras la escala
   ctx.lineJoin    = 'round';
-  tracePoly(SKINS[skinIndex].verts);
+  tracePoly(skin.verts);
   ctx.stroke();
   ctx.restore();
 }
