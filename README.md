@@ -41,6 +41,8 @@ Luego visita `http://localhost:3000`.
 | Estrella fugaz | 500    |
 | OVNI           | 300    |
 
+Con la nave **morada** todos los puntos se duplican.
+
 ## Características
 
 - 3 vidas con invencibilidad temporal al reaparecer (parpadeo)
@@ -51,4 +53,4 @@ Luego visita `http://localhost:3000`.
 - Power-up **Disparo triple**: cápsula magenta con abanico; durante 5 s cada disparo lanza 3 balas en abanico de ±15° (barra de tiempo restante en el HUD)
 - **Estrella fugaz**: asteroide dorado con estela que cruza la pantalla cada 8–15 s; da 500 puntos al destruirlo, pero también destruye la nave al chocar
 - **OVNI**: enemigo rojo que aparece cada 12–18 s con rumbo errático y bombardea a la nave durante ~12 s, cada vez con mejor puntería; da 300 puntos al destruirlo y también muere si choca contra un asteroide
-- **Skins de nave**: pulsa `C` en cualquier momento para ciclar entre 4 naves (clásica, neón, ámbar y rubí), cada una con su propia forma, color de trazo y llama del propulsor; la elección se guarda en `localStorage` y sobrevive recargas
+- **Skins de nave**: pulsa `C` en cualquier momento para ciclar entre 5 naves (clásica, neón, ámbar, rubí y morada), cada una con su propia forma, color de trazo y llama del propulsor; la **morada** es el doble de grande que la original (más hitbox y escudo acordes) a cambio de recibir el doble de puntos; la elección se guarda en `localStorage` y sobrevive recargas
