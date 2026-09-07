@@ -148,20 +148,27 @@ class Asteroid {
   }
 }
 
-// ── Power-ups (Velocidad / Escudo) ────────────────────────────────────────────
+// ── Power-ups (Velocidad / Escudo / Disparo triple) ───────────────────────────
 const DROP_CHANCE    = 0.9;  // probabilidad de que un asteroide destruido suelte una cápsula
 const POWERUP_TTL    = 9;     // segundos antes de desaparecer
 const BOOST_DURATION = 5;     // segundos de empuje x2
 const BOOST_FACTOR   = 2;     // multiplicador de empuje
-const SHIELD_CHANCE  = 0.5;   // probabilidad de que la cápsula sea de Escudo
-const SHIELD_MAX     = 3;     // impactos que absorbe el escudo
-const SHIELD_RADIUS  = 22;    // radio del anillo de escudo alrededor de la nave
+const SHIELD_CHANCE   = 0.25;  // probabilidad de que la cápsula sea de Escudo
+const SHIELD_MAX      = 3;     // impactos que absorbe el escudo
+const SHIELD_RADIUS   = 22;    // radio del anillo de escudo alrededor de la nave
+const TRIPLE_CHANCE   = 0.25;  // probabilidad de que la cápsula sea de Disparo triple
+const TRIPLE_DURATION = 5;     // segundos de disparo triple
+const TRIPLE_ANGLE    = 15 * Math.PI / 180;  // apertura de cada lado del abanico
 
 class PowerUp {
   constructor(x, y) {
     this.x = x;
     this.y = y;
-    this.type = Math.random() < SHIELD_CHANCE ? 'shield' : 'speed';
+    // 50% Velocidad, 25% Escudo, 25% Disparo triple
+    const r = Math.random();
+    if (r < SHIELD_CHANCE) this.type = 'shield';
+    else if (r < SHIELD_CHANCE + TRIPLE_CHANCE) this.type = 'triple';
+    else this.type = 'speed';
     const angle = rand(0, Math.PI * 2);
     const speed = rand(25, 55);
     this.vx = Math.cos(angle) * speed;
@@ -185,11 +192,11 @@ class PowerUp {
     // Parpadeo cuando está por expirar
     if (this.ttl < 2 && Math.floor(this.ttl * 8) % 2 === 0) return;
 
-    const shield = this.type === 'shield';
+    const type = this.type;
 
     ctx.save();
     ctx.translate(this.x, this.y);
-    ctx.strokeStyle = shield ? '#4f4' : '#0ff';
+    ctx.strokeStyle = type === 'shield' ? '#4f4' : type === 'triple' ? '#f0f' : '#0ff';
     ctx.lineWidth   = 1.5;
     ctx.lineJoin    = 'round';
 
@@ -205,7 +212,7 @@ class PowerUp {
     ctx.stroke();
     ctx.restore();
 
-    if (shield) {
+    if (type === 'shield') {
       // Broche de escudo fijo en el centro
       ctx.beginPath();
       ctx.moveTo(   0, -5.5);
@@ -215,6 +222,16 @@ class PowerUp {
       ctx.lineTo(-4.5,  1.5);
       ctx.lineTo(-4.5,   -3);
       ctx.closePath();
+      ctx.stroke();
+    } else if (type === 'triple') {
+      // Tres radios en abanico fijos en el centro
+      ctx.beginPath();
+      ctx.moveTo( 0,  6);
+      ctx.lineTo( 0, -5);
+      ctx.moveTo( 0,  6);
+      ctx.lineTo(-6, -3);
+      ctx.moveTo( 0,  6);
+      ctx.lineTo( 6, -3);
       ctx.stroke();
     } else {
       // Rayo fijo en el centro
@@ -423,6 +440,7 @@ class Ship {
     this.speedBoost    = 0;
     this.shield        = 0;
     this.shieldFlash   = 0;
+    this.tripleShot    = 0;
     this.dead          = false;
   }
 
@@ -432,6 +450,7 @@ class Ship {
     if (this.shootCooldown > 0) this.shootCooldown -= dt;
     if (this.speedBoost    > 0) this.speedBoost    -= dt;
     if (this.shieldFlash   > 0) this.shieldFlash   -= dt;
+    if (this.tripleShot    > 0) this.tripleShot    -= dt;
 
     const ROT   = 3.5;   // rad/s
     const THRUST = 260;  // px/s²
@@ -459,6 +478,10 @@ class Ship {
     const NOSE = 21;
     const ox = this.x + Math.cos(this.angle) * NOSE;
     const oy = this.y + Math.sin(this.angle) * NOSE;
+    if (this.tripleShot > 0) {
+      // Abanico: tres balas divergiendo desde la nariz
+      return [-1, 0, 1].map(k => new Bullet(ox, oy, this.angle + k * TRIPLE_ANGLE));
+    }
     return [new Bullet(ox, oy, this.angle)];
   }
 
@@ -614,6 +637,7 @@ function killShip() {
   ship.dead = true;
   ship.speedBoost = 0;
   ship.shield = 0;
+  ship.tripleShot = 0;
   lives--;
   if (lives <= 0) {
     state = 'gameover';
@@ -677,6 +701,9 @@ function update(dt) {
       if (pu.type === 'shield') {
         ship.shield = Math.min(SHIELD_MAX, ship.shield + 1);
         explode(pu.x, pu.y, 6, '85,255,85');
+      } else if (pu.type === 'triple') {
+        ship.tripleShot = TRIPLE_DURATION;
+        explode(pu.x, pu.y, 6, '255,0,255');
       } else {
         ship.speedBoost = BOOST_DURATION;
         explode(pu.x, pu.y, 6, '0,255,255');
@@ -866,6 +893,21 @@ function drawShieldIcon(x, y, active) {
   ctx.restore();
 }
 
+function drawTimerBar(by, remaining, total, color) {
+  const BW = 120, BH = 8;
+  const bx = 14;
+  // Parpadeo en el último segundo
+  if (remaining < 1 && Math.floor(remaining * 8) % 2 === 0) return;
+  // Marco
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(bx, by, BW, BH);
+  // Relleno que se vacía de derecha a izquierda
+  ctx.fillStyle = color;
+  ctx.fillRect(bx + 1, by + 1, (BW - 2) * (remaining / total), BH - 2);
+  ctx.fillStyle = '#fff';
+}
+
 function drawHUD() {
   ctx.fillStyle = '#fff';
   ctx.font = '15px monospace';
@@ -873,23 +915,9 @@ function drawHUD() {
   ctx.textAlign = 'left';
   ctx.fillText(`SCORE  ${score}`, 14, 26);
 
-  // Barra de tiempo restante del power-up Velocidad
-  if (ship.speedBoost > 0) {
-    const BW = 120, BH = 8;
-    const bx = 14, by = 36;
-    // Parpadeo en el último segundo
-    const blink = ship.speedBoost < 1 && Math.floor(ship.speedBoost * 8) % 2 === 0;
-    if (!blink) {
-      // Marco
-      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(bx, by, BW, BH);
-      // Relleno cyan, se vacía de derecha a izquierda
-      ctx.fillStyle = '#0ff';
-      ctx.fillRect(bx + 1, by + 1, (BW - 2) * (ship.speedBoost / BOOST_DURATION), BH - 2);
-    }
-    ctx.fillStyle = '#fff';
-  }
+  // Barras de tiempo restante de los power-ups Velocidad y Disparo triple
+  if (ship.speedBoost > 0) drawTimerBar(36, ship.speedBoost, BOOST_DURATION, '#0ff');
+  if (ship.tripleShot > 0) drawTimerBar(48, ship.tripleShot, TRIPLE_DURATION, '#f0f');
 
   ctx.textAlign = 'center';
   ctx.fillText(`NIVEL ${level}`, W / 2, 26);
