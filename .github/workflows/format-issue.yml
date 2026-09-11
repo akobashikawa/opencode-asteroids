@@ -1,0 +1,193 @@
+name: formatear-issue
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  formatear:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Obtener token de la app opencode-agent
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const oidcToken = await core.getIDToken('opencode-github-action')
+            const res = await fetch('https://api.opencode.ai/exchange_github_app_token', {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${oidcToken}` }
+            })
+            if (!res.ok) {
+              throw new Error(`Intercambio de token fallido: ${res.status} ${res.statusText}`)
+            }
+            const data = await res.json()
+            if (!data.token) {
+              throw new Error('La respuesta del intercambio no contenía un token')
+            }
+            core.setSecret(data.token)
+            core.exportVariable('APP_TOKEN', data.token)
+
+      - name: Preparar payload del issue
+        env:
+          ISSUE_JSON: ${{ toJSON(github.event.issue) }}
+        run: |
+          node <<'EOF'
+          const fs = require('fs')
+          const issue = JSON.parse(process.env.ISSUE_JSON || '{}')
+          const payload = {
+            number: issue.number,
+            title: issue.title,
+            body: issue.body || '',
+            author: (issue.user && issue.user.login) || 'desconocido',
+            url: issue.html_url,
+            labels: (issue.labels || []).map((l) => l.name)
+          }
+          fs.writeFileSync('.issue.json', JSON.stringify(payload, null, 2))
+          console.log(`Issue #${payload.number}: ${payload.title}`)
+          EOF
+
+      - name: Instalar opencode
+        run: npm install -g opencode-ai
+
+      - name: Generar formato con opencode
+        timeout-minutes: 5
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENCODE_PERMISSION: '{"edit":"deny","write":"deny","bash":{"*":"deny"}}'
+          PROMPT: |
+            Eres un asistente que formatea issues de GitHub de un juego: un clon de Asteroids en vanilla JS. Lee AGENTS.md y README.md del repositorio para conocer el proyecto.
+
+            Lee el archivo .issue.json del directorio actual: contiene el issue recién creado (título, cuerpo, autor y etiquetas existentes).
+
+            Tu tarea:
+
+            1. Clasifica el issue eligiendo 1 o 2 etiquetas, exclusivamente de esta lista permitida: bug, feature, question, documentation.
+            2. Redacta un comentario en Markdown, en español, con exactamente esta estructura:
+
+               > [!NOTE]
+               > Este issue fue formateado automáticamente por opencode 🤖 — la descripción original permanece intacta.
+
+               **Etiquetas aplicadas:** `etiqueta` (y `segunda` si aplica)
+
+               ### 📝 Descripción original (de @autor)
+               > (cuerpo original del issue citado TEXTUAL, línea a línea con el prefijo "> "; sin resumir, sin corregir, sin omitir nada; si el cuerpo está vacío, cita el título)
+
+               ### 🔍 Información complementaria
+               - **Tipo detectado:** (bug | feature | question | documentation) — (justificación en una línea)
+               - **Contexto del juego:** (información verificada en el repositorio: referencias concretas a README.md, AGENTS.md o game.js —secciones, constantes, comportamientos— que ayuden a entender o resolver el issue)
+               - **Cómo reproducir:** (solo si es un bug y el autor no dio pasos concretos; si no aplica, omite esta línea)
+
+            Reglas estrictas:
+            - No modifiques ni resumas el texto del autor: debe aparecer textual en el blockquote.
+            - Fundamenta la información complementaria en archivos reales del repositorio; no inventes comportamientos del juego.
+            - Sé conciso: la información complementaria no debe superar ~10 líneas.
+            - No incluyas las cadenas "/oc" ni "/opencode" en el comentario.
+
+            Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional y sin fences de código, con esta forma exacta:
+
+            {"labels": ["etiqueta"], "comment": "el comentario completo en Markdown"}
+        run: opencode run --model opencode-go/glm-5.2 "$PROMPT" > response.txt
+
+      - name: Publicar comentario y etiquetas
+        env:
+          APP_TOKEN: ${{ env.APP_TOKEN }}
+          REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          node <<'EOF'
+          const fs = require('fs')
+          const ALLOWED = ['bug', 'feature', 'question', 'documentation']
+          const COLORS = { bug: 'd73a4a', feature: 'a2eeef', question: 'd876e3', documentation: '0075ca' }
+          const env = process.env
+
+          function extractJson(text) {
+            const start = text.indexOf('{')
+            if (start === -1) return null
+            let end = text.length
+            while (true) {
+              end = text.lastIndexOf('}', end - 1)
+              if (end <= start) return null
+              try {
+                return JSON.parse(text.slice(start, end + 1))
+              } catch {}
+            }
+          }
+
+          let raw
+          try {
+            raw = fs.readFileSync('response.txt', 'utf8')
+          } catch {
+            console.log('::warning::No hay respuesta de opencode; el issue queda sin formatear')
+            process.exit(0)
+          }
+
+          const data = extractJson(raw)
+          if (!data || !Array.isArray(data.labels) || typeof data.comment !== 'string' || !data.comment.trim()) {
+            console.log('::warning::La respuesta de opencode no contenía JSON válido; el issue queda sin formatear')
+            console.log(raw.slice(0, 500))
+            process.exit(0)
+          }
+
+          const pedidas = data.labels.map((l) => String(l).toLowerCase().trim())
+          const labels = [...new Set(pedidas.filter((l) => ALLOWED.includes(l)))]
+          const comment = data.comment.trim().slice(0, 50000)
+          const descartadas = pedidas.filter((l) => !ALLOWED.includes(l))
+          if (descartadas.length > 0) {
+            console.log(`::warning::Etiquetas descartadas por no estar en la lista permitida: ${descartadas.join(', ')}`)
+          }
+
+          if (env.DRY_RUN === '1') {
+            console.log(`DRY_RUN — Issue #${env.ISSUE_NUMBER} de ${env.REPO}`)
+            console.log(`Etiquetas: ${labels.join(', ') || '(ninguna)'}`)
+            console.log('--- comentario ---')
+            console.log(comment)
+            process.exit(0)
+          }
+
+          const api = (path, body) =>
+            fetch(`https://api.github.com/repos/${env.REPO}/${path}`, {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${env.APP_TOKEN}`,
+                Accept: 'application/vnd.github+json',
+                'X-GitHub-Api-Version': '2022-11-28'
+              },
+              body: JSON.stringify(body)
+            })
+
+          async function main() {
+            for (const name of labels) {
+              const res = await api('labels', { name, color: COLORS[name] })
+              if (res.status !== 201 && res.status !== 422) {
+                console.log(`::warning::No se pudo crear la etiqueta ${name} (HTTP ${res.status})`)
+              }
+            }
+            if (labels.length > 0) {
+              const res = await api(`issues/${env.ISSUE_NUMBER}/labels`, { labels })
+              if (!res.ok) {
+                console.log(`::warning::No se pudieron aplicar etiquetas (HTTP ${res.status})`)
+              }
+            }
+            const res = await api(`issues/${env.ISSUE_NUMBER}/comments`, { body: comment })
+            if (!res.ok) {
+              throw new Error(`No se pudo publicar el comentario (HTTP ${res.status})`)
+            }
+            console.log(`Issue #${env.ISSUE_NUMBER} formateado — etiquetas: ${labels.join(', ') || '(ninguna)'}`)
+          }
+
+          main().catch((e) => {
+            console.error(e)
+            process.exit(1)
+          })
+          EOF

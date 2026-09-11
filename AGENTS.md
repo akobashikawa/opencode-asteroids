@@ -6,6 +6,11 @@ Vanilla JS Asteroids clone. No build, no dependencies, no tests, no lint/typeche
 
 Open `index.html` directly in a browser, or `npx serve .` (README documents port 3000). No install step.
 
+## GitHub Actions
+
+- `.github/workflows/opencode.yml`: runs opencode when an issue/PR comment mentions `/oc` or `/opencode`.
+- `.github/workflows/format-issue.yml`: on `issues: [opened]`, the opencode CLI runs read-only (inline `OPENCODE_PERMISSION` denies edit/write/bash) to classify the issue; a Node step then creates/applies labels (`bug`/`feature`/`question`/`documentation`) and posts a formatted comment quoting the original body. API auth is an `opencode-agent` app token minted via OIDC (`APP_TOKEN`), not `GITHUB_TOKEN`. The Node scripts live inside the YAML as heredocs — there is no separate script file; keep user-facing strings in them in Spanish.
+
 ## Architecture
 
 - All game code lives in `game.js` (loaded by `index.html`); keep it single-file.

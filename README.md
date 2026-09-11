@@ -54,3 +54,15 @@ Con la nave **morada** todos los puntos se duplican.
 - **Estrella fugaz**: asteroide dorado con estela que cruza la pantalla cada 8–15 s; da 500 puntos al destruirlo, pero también destruye la nave al chocar
 - **OVNI**: enemigo rojo que aparece cada 12–18 s con rumbo errático y bombardea a la nave durante ~12 s, cada vez con mejor puntería; da 300 puntos al destruirlo y también muere si choca contra un asteroide
 - **Skins de nave**: pulsa `C` en cualquier momento para ciclar entre 5 naves (clásica, neón, ámbar, rubí y morada), cada una con su propia forma, color de trazo y llama del propulsor; la **morada** es el doble de grande que la original (más hitbox y escudo acordes) a cambio de recibir el doble de puntos; la elección se guarda en `localStorage` y sobrevive recargas
+
+## Automatización
+
+El repositorio integra [opencode](https://opencode.ai) mediante dos GitHub Actions:
+
+- **`opencode`** — comenta `/oc` o `/opencode` en un issue o PR y opencode trabajará sobre el hilo: explica, corrige o implementa lo pedido.
+- **`formatear-issue`** — al crearse un issue, opencode lo analiza en modo solo-lectura y:
+  - le agrega una etiqueta (`bug`, `feature`, `question` o `documentation`, creada si no existe);
+  - publica un comentario que cita la descripción original del autor textualmente y agrega información complementaria del repositorio (referencias al README y a `game.js`, pasos de reproducción si faltan).
+
+  La descripción original nunca se modifica. La autenticación con la API de GitHub usa un token de la app `opencode-agent` obtenido vía OIDC — no `GITHUB_TOKEN` — y cada issue nuevo consume una ejecución de opencode.
+
