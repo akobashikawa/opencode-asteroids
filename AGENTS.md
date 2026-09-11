@@ -11,6 +11,11 @@ Open `index.html` directly in a browser, or `npx serve .` (README documents port
 - `.github/workflows/opencode.yml`: runs opencode when an issue/PR comment mentions `/oc` or `/opencode`.
 - `.github/workflows/format-issue.yml`: on `issues: [opened]`, the opencode CLI runs read-only (inline `OPENCODE_PERMISSION` denies edit/write/bash) to classify the issue; a Node step then creates/applies labels (`bug`/`feature`/`question`/`documentation`) and posts a formatted comment quoting the original body. API auth is an `opencode-agent` app token minted via OIDC (`APP_TOKEN`), not `GITHUB_TOKEN`. The Node scripts live inside the YAML as heredocs — there is no separate script file; keep user-facing strings in them in Spanish.
 
+## OpenCode
+
+- `opencode.json` is the project config: bash commands are allowed (`permission.bash: "allow"`) and external-directory access is granted for `/tmp/**`.
+- `.opencode/command/worktree.md` defines the `/worktree` command, which creates a git worktree under `.worktrees/` (name normalized to a valid directory/branch name) without changing directory.
+
 ## Architecture
 
 - All game code lives in `game.js` (loaded by `index.html`); keep it single-file.

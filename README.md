@@ -66,3 +66,5 @@ El repositorio integra [opencode](https://opencode.ai) mediante dos GitHub Actio
 
   La descripción original nunca se modifica. La autenticación con la API de GitHub usa un token de la app `opencode-agent` obtenido vía OIDC — no `GITHUB_TOKEN` — y cada issue nuevo consume una ejecución de opencode.
 
+La configuración local de opencode está en `opencode.json` —habilita los comandos `bash` y el acceso a `/tmp`— y en `.opencode/`, que define el comando `/worktree` para crear worktrees de git en `.worktrees/`.
+
